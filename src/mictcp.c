@@ -4,8 +4,8 @@
 int num_seq = 0;
 int num_ack = 0;
 
-mic_tcp_sock * SOCKET_LOCAL ;
-mic_tcp_sock_addr * ADRESSE_DISTANTE ;
+mic_tcp_sock SOCKET_LOCAL ;
+mic_tcp_sock_addr ADRESSE_DISTANTE ;
 
 
 /*
@@ -30,10 +30,9 @@ int mic_tcp_socket(start_mode sm)
 int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 {
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-   SOCKET_LOCAL = malloc(sizeof(mic_tcp_sock)) ;
-   SOCKET_LOCAL->fd = socket ;
-   SOCKET_LOCAL->state = IDLE;
-   SOCKET_LOCAL->addr = addr;
+   SOCKET_LOCAL.fd = socket ;
+   SOCKET_LOCAL.state = IDLE;
+   SOCKET_LOCAL.addr = addr;
    return 0;
 }
 
@@ -44,6 +43,7 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 int mic_tcp_accept(int socket, mic_tcp_sock_addr * addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
+    SOCKET_LOCAL.state = ESTABLISHED ; 
     return 0;
 }
 
@@ -55,8 +55,8 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr * addr)
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    SOCKET_LOCAL->state = ESTABLISHED ; 
-    ADRESSE_DISTANTE = &addr;
+    SOCKET_LOCAL.state = ESTABLISHED ; 
+    ADRESSE_DISTANTE = addr;
     return 0;
 }
 
@@ -73,8 +73,8 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 
     //Je remplis mon PDU
         //Header
-    pdu.header.source_port = SOCKET_LOCAL->addr.port;
-    pdu.header.dest_port = ADRESSE_DISTANTE->port;
+    pdu.header.source_port = SOCKET_LOCAL.addr.port;
+    pdu.header.dest_port = ADRESSE_DISTANTE.port;
     pdu.header.seq_num = num_seq;
     pdu.header.ack_num = num_ack;
     pdu.header.syn = 0;
@@ -87,12 +87,12 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
     
-    if (SOCKET_LOCAL->state != ESTABLISHED) {
+    if (SOCKET_LOCAL.state != ESTABLISHED) {
         printf("Le socket n'est pas en état connecté");
         return -1;
     }
 
-    while((sent_size = (IP_send(pdu, SOCKET_LOCAL->addr)))==-1) {}
+    while((sent_size = (IP_send(pdu, SOCKET_LOCAL.addr)))==-1) {}
     
 
     return sent_size ;
@@ -108,7 +108,7 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
-    if (SOCKET_LOCAL->state!= ESTABLISHED) {
+    if (SOCKET_LOCAL.state != ESTABLISHED) {
         printf("Le socket n'est pas en état connecté");
         return -1;
     }
@@ -147,7 +147,6 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
     app_buffer_put(pdu.payload);
-
 
 }
 
