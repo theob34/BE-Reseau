@@ -3,8 +3,6 @@ TAG := moodle-$(USER)
 PORT := $(shell expr `id -u` % 2000 + 12487)
 PORT2 := $(shell expr $(PORT) + 1)
 
-//Test nul
-
 ifneq ($(tag),)
         TAG := $(TAG)-$(tag)
 endif

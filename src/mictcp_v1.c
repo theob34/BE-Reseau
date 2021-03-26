@@ -87,7 +87,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
     
-    if (SOCKET_LOCAL->state == ESTABLISHED) {
+    if (SOCKET_LOCAL->state != ESTABLISHED) {
         printf("Le socket n'est pas en état connecté");
         return -1;
     }
@@ -108,7 +108,7 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
-    if (SOCKET_LOCAL->state == ESTABLISHED) {
+    if (SOCKET_LOCAL->state!= ESTABLISHED) {
         printf("Le socket n'est pas en état connecté");
         return -1;
     }
@@ -128,11 +128,12 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
  * Permet de réclamer la destruction d’un socket.
  * Engendre la fermeture de la connexion suivant le modèle de TCP.
  * Retourne 0 si tout se passe bien et -1 en cas d'erreur
+ * PAS BESOIN DE CODER CETTE ANNEE
  */
 int mic_tcp_close (int socket)
 {
     printf("[MIC-TCP] Appel de la fonction :  "); printf(__FUNCTION__); printf("\n");
-    return -1;
+    return 0;
 }
 
 /*
@@ -144,6 +145,10 @@ int mic_tcp_close (int socket)
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+
+    app_buffer_put(pdu.payload);
+
+
 }
 
 
