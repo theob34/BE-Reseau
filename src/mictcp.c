@@ -4,6 +4,7 @@
 int num_seq = 0;
 int num_ack = 0;
 
+//Adresse locale et distante
 mic_tcp_sock SOCKET_LOCAL ;
 mic_tcp_sock_addr ADRESSE_DISTANTE ;
 
