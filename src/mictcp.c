@@ -1,8 +1,15 @@
 #include <mictcp.h>
 #include <api/mictcp_core.h>
+#define true 1
+#define false 0
+
+typedef int boolean;
 
 static int seq_num = 0;
 static int ack_num = 0;
+static float paquet_envoye;
+static float paquet_recu;
+float taux_perte = 20;
 
 //Adresse locale et distante
 mic_tcp_sock SOCKET_LOCAL ;     //Correspond à la source
@@ -58,6 +65,8 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     SOCKET_LOCAL.state = ESTABLISHED ; 
     ADRESSE_DISTANTE = addr;
+    paquet_envoye = 0.0;
+    paquet_recu = 0.0;
     return 0;
 }
 
@@ -93,15 +102,50 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     seq_num = (seq_num + 1)%2;
 
     mic_tcp_pdu ack_pdu;
-    //mic_tcp_sock_addr ack_addr;
-    
-    do {
 
-        while((sent_size = (IP_send(pdu, SOCKET_LOCAL.addr)))==-1) {}
+    boolean envoi_necessaire = true;
+
+    int pdu_recu;
+
+    while(envoi_necessaire) {
+
+        envoi_necessaire = false;
+
+        //j'envoie mon paquet
+        if((sent_size = (IP_send(pdu, SOCKET_LOCAL.addr)))==-1) {
+            printf("[MIC-TCP] Erreur dans l'envoi du paquet");
+            exit(0);
+        }
         
-        IP_recv(&ack_pdu, &ADRESSE_DISTANTE, 100) ;
+        //J'attend l'ack
+        if ((pdu_recu = IP_recv(&ack_pdu, &ADRESSE_DISTANTE, 1)) == -1) {
+            //S'il y a une erreur
+            envoi_necessaire = true;
+        }
 
-    } while (ack_pdu.header.ack_num != seq_num) ;
+        //Si j'ai bien recu le pdu, je l'analyse
+        if(pdu_recu != -1) {
+
+            //Si le paquet est bien reçu par le puits (via ACK), j'incrémente ma variable de paquet reçu
+            if (ack_pdu.header.ack_num == seq_num) {
+                paquet_recu ++;
+            }
+            else {
+                //Je regarde si la perte de ce paquet serait tolérable (i.e. taux inférieur au taux de perte autorisée)
+                if (paquet_recu / paquet_envoye <= 1 - taux_perte) {
+                    //Elle est pas tolérable, je renvoie
+                    envoi_necessaire = true;
+                }
+                else {
+                    //J'abandonne l'envoie (le paquet sera considéré perdu mais je traite plutot les paquets bien envoyés)
+
+                    //Soit le paquet a été perdu, dans ce cas, je trompe le recepteur en lui envoyant le paquet N+1 et le faisant passer pour le paquet N
+                    //Soit l'ack a été perdu, dans ce cas, je ne touche pas à mes 
+                }
+            }
+        }
+
+    }
 
     return sent_size ;
 }
