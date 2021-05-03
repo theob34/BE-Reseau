@@ -9,7 +9,7 @@ static int seq_num = 0;
 static int ack_num = 0;
 static float paquet_envoye;
 static float paquet_recu;
-float taux_perte = 0.2;
+float taux_perte = 0.5;
 
 //Adresse locale et distante
 mic_tcp_sock SOCKET_LOCAL ;     //Correspond à la source
@@ -25,7 +25,7 @@ int mic_tcp_socket(start_mode sm)
    int result = -1;
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
    result = initialize_components(sm); /* Appel obligatoire */
-   set_loss_rate(20);
+   set_loss_rate(5);
 
    return result;
 }
@@ -39,7 +39,7 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 {
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
    SOCKET_LOCAL.fd = socket ;
-   SOCKET_LOCAL.state = IDLE;
+   SOCKET_LOCAL.state = IDLE;1.0 - taux_per
    SOCKET_LOCAL.addr = addr;
    return 0;
 }
@@ -93,7 +93,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     pdu.payload.data = mesg ;
     pdu.payload.size = mesg_size ;
 
-    printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    //printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
     if (SOCKET_LOCAL.state != ESTABLISHED) {
         printf("Le socket n'est pas en état connecté\n");
@@ -183,7 +183,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
  */
 int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 {
-    printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    //printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
     if (SOCKET_LOCAL.state != ESTABLISHED) {
         printf("Le socket n'est pas en état connecté");
@@ -221,7 +221,7 @@ int mic_tcp_close (int socket)
  */
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
 {
-    printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    //printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
     //Si le paquet reçu est celui attendu, je le stocke dans le buffer et j'incrémente mon ack
     if (pdu.header.seq_num >= ack_num) {
@@ -241,7 +241,10 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
     pdu_ack.header.ack = 1;
     pdu_ack.header.fin = 0;
 
-    while ((IP_send(pdu_ack, addr))==-1) {}
+    if ((IP_send(pdu_ack, addr))==-1) {
+        printf("Erreur envoi ACK\n");
+        exit(0);
+    }
 
 }
 
