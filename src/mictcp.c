@@ -9,7 +9,7 @@ static int seq_num = 0;
 static int ack_num = 0;
 static float paquet_envoye;
 static float paquet_recu;
-float taux_perte = 20;
+float taux_perte = 0.2;
 
 //Adresse locale et distante
 mic_tcp_sock SOCKET_LOCAL ;     //Correspond à la source
@@ -25,7 +25,7 @@ int mic_tcp_socket(start_mode sm)
    int result = -1;
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
    result = initialize_components(sm); /* Appel obligatoire */
-   set_loss_rate(50);
+   set_loss_rate(20);
 
    return result;
 }
@@ -54,6 +54,7 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr * addr)
     SOCKET_LOCAL.state = ESTABLISHED ; 
     return 0;
 }
+    //Si le paquet reçu est celui att
 
 /*
  * Permet de réclamer l’établissement d’une connexion
@@ -99,7 +100,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         return -1;
     }
 
-    seq_num = (seq_num + 1)%2;
+    seq_num = (seq_num + 1);
 
     mic_tcp_pdu ack_pdu;
 
@@ -107,24 +108,48 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 
     int pdu_recu;
 
-    while(envoi_necessaire) {
+    paquet_envoye ++ ;
 
-        envoi_necessaire = false;
+    //printf("Nombre de paquet envoyé : %f\nNombre de paquet reçu : %f\nTaux de perte : %f\n", paquet_envoye, paquet_recu, (paquet_recu / paquet_envoye));
+    //printf("Taux de perte autorisé : %f\n", (1 - taux_perte));
+
+    while(envoi_necessaire) {
 
         //j'envoie mon paquet
         if((sent_size = (IP_send(pdu, SOCKET_LOCAL.addr)))==-1) {
             printf("[MIC-TCP] Erreur dans l'envoi du paquet");
             exit(0);
         }
+
+        //Je considère l'envoi réussi par défaut
+        envoi_necessaire = false;
         
         //J'attend l'ack
-        if ((pdu_recu = IP_recv(&ack_pdu, &ADRESSE_DISTANTE, 1)) == -1) {
-            //S'il y a une erreur
-            envoi_necessaire = true;
+        pdu_recu = IP_recv(&ack_pdu, &ADRESSE_DISTANTE, 1);  //timeout d'une milliseconde
+        
+        //Si j'ai pas reçu d'ACK
+        if (pdu_recu == -1) {
+
+            //printf("J'ai pas reçu d'ACK\n");
+
+            //Je regarde si la perte de ce paquet serait tolérable (i.e. taux inférieur au taux de perte autorisée)
+            if (paquet_recu / paquet_envoye < (1.0 - taux_perte)) {
+                //Elle est pas tolérable, je renvoie
+                envoi_necessaire = true;
+
+                //printf("Taux de'envoi actuel : %f\nTaux d'envoi voulu : %f\nPerte non tolérable\n", (paquet_recu / paquet_envoye), (1 - taux_perte));
+            }
+            else {
+                //J'abandonne le paquet (le paquet sera considéré perdu mais je traite plutot les paquets bien envoyés)
+                //printf("Perte tolérable\ndifférenciation");
+                //Soit le paquet a été perdu, soit c'est l'ACK qui a été perdu. Je traiterais la différenciation de ces cas dans une v3.2.
+            }
         }
 
         //Si j'ai bien recu le pdu, je l'analyse
         if(pdu_recu != -1) {
+
+            //printf("J'ai bien reçu l'ACK\n");
 
             //Si le paquet est bien reçu par le puits (via ACK), j'incrémente ma variable de paquet reçu
             if (ack_pdu.header.ack_num == seq_num) {
@@ -132,15 +157,15 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
             }
             else {
                 //Je regarde si la perte de ce paquet serait tolérable (i.e. taux inférieur au taux de perte autorisée)
-                if (paquet_recu / paquet_envoye <= 1 - taux_perte) {
+                if (paquet_recu / paquet_envoye < (1.0 - taux_perte)) {
                     //Elle est pas tolérable, je renvoie
                     envoi_necessaire = true;
+                    //printf("Perte non tolérable\n");
                 }
                 else {
-                    //J'abandonne l'envoie (le paquet sera considéré perdu mais je traite plutot les paquets bien envoyés)
-
-                    //Soit le paquet a été perdu, dans ce cas, je trompe le recepteur en lui envoyant le paquet N+1 et le faisant passer pour le paquet N
-                    //Soit l'ack a été perdu, dans ce cas, je ne touche pas à mes 
+                    //J'abandonne le paquet (le paquet sera considéré perdu mais je traite plutot les paquets bien envoyés)
+                    //printf("Perte tolérable\n");
+                    //Soit le paquet a été perdu, soit c'est l'ACK qui a été perdu. Je traiterais la différenciation de ces cas dans une v3.2.
                 }
             }
         }
@@ -199,9 +224,9 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
     //Si le paquet reçu est celui attendu, je le stocke dans le buffer et j'incrémente mon ack
-    if (pdu.header.seq_num == ack_num) {
+    if (pdu.header.seq_num >= ack_num) {
         app_buffer_put(pdu.payload);
-        ack_num = (ack_num + 1)%2 ;
+        ack_num = (pdu.header.seq_num + 1) ;
     }
 
     //Dans les deux cas (erreur ou pas) je renvoie un paquet avec le numéro d'ACK attendu
