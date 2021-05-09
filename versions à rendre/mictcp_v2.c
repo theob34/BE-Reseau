@@ -2,12 +2,12 @@
 #include <api/mictcp_core.h>
 
 //Variables servant pour numéroter les paquets
-int num_seq = 0;
-int num_ack = 0;
+int seq_num = 0;
+int ack_num = 0;
 
-//Adresse locale et distante
-mic_tcp_sock SOCKET_LOCAL ;
-mic_tcp_sock_addr ADRESSE_DISTANTE ;
+//Adresses locale et distante
+mic_tcp_sock SOCKET_LOCAL ;     //Correspond à la source
+mic_tcp_sock_addr ADRESSE_DISTANTE ;    //Correspond au puits
 
 
 /*
@@ -17,10 +17,10 @@ mic_tcp_sock_addr ADRESSE_DISTANTE ;
 int mic_tcp_socket(start_mode sm)
 {
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-   
+
    int result = -1;
    result = initialize_components(sm); /* Appel obligatoire */
-   set_loss_rate(0);
+   set_loss_rate(50);
 
    return result;
 }
@@ -76,7 +76,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 {
     //printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    
+
     //Je crée le PDU contenant mon message à envoyer
     int sent_size ;
     mic_tcp_pdu pdu;
@@ -85,8 +85,8 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         //Header
     pdu.header.source_port = SOCKET_LOCAL.addr.port;
     pdu.header.dest_port = ADRESSE_DISTANTE.port;
-    pdu.header.seq_num = num_seq;
-    pdu.header.ack_num = num_ack;
+    pdu.header.seq_num = seq_num;
+    pdu.header.ack_num = 0;
     pdu.header.syn = 0;
     pdu.header.ack = 0;
     pdu.header.fin = 0;
@@ -96,18 +96,30 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 
     //Je vérifie que la connexion est bien établie entre ma source et mon puits
     if (SOCKET_LOCAL.state != ESTABLISHED) {
-        printf("Le socket n'est pas en état connecté");
+        printf("Le socket n'est pas en état connecté\n");
         return -1;
     }
 
-    //J'incrémente le numéro de paquet (qui sera celui du prochain paquet à envoyer)
-    num_seq = (num_seq + 1)%2 ; 
+    //J'incrémente le numéro de paquet modulo 2 (qui sera celui du prochain paquet à envoyer)
+    seq_num = (seq_num + 1)%2;
 
-    //J'envoie mon paquet
-    if((sent_size = (IP_send(pdu, SOCKET_LOCAL.addr)))==-1) {
-        printf("[MIC-TCP] Erreur dans l'envoi du paquet");
-        exit(0);
-    }
+    //Je crée les variables me permettant de recevoir le PDU contenant l'ACK
+    mic_tcp_pdu ack_pdu;
+    int pdu_recu;
+    
+    do {
+
+        //J'envoie mon paquet
+        if((sent_size = (IP_send(pdu, SOCKET_LOCAL.addr)))==-1) {
+            printf("[MIC-TCP] Erreur dans l'envoi du paquet");
+            exit(0);
+        }
+        
+        //J'attends l'ACK
+        pdu_recu = IP_recv(&ack_pdu, &ADRESSE_DISTANTE, 1); //timeout d'une milliseconde
+
+    } while ((pdu_recu == -1) || (ack_pdu.header.ack_num != seq_num)) ;
+    //Si je n'ai pas recu de PDU ou que le numéro ne correspond pas, je recommence l'envoi
 
     return sent_size ;
 }
@@ -157,11 +169,28 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
 {
     //printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
-    //Je stocke le paquet reçu dans le buffer
-    app_buffer_put(pdu.payload);
+    //Si le paquet reçu est celui attendu, je le stocke dans le buffer et j'incrémente mon ack
+    if (pdu.header.seq_num == ack_num) {
+        app_buffer_put(pdu.payload);
+        ack_num = (ack_num + 1)%2 ;
+    }
+
+    //Dans les deux cas (erreur ou pas) je renvoie un paquet avec le numéro d'ACK attendu
+    //Je remplit le PDU contenant l'ACK
+    mic_tcp_pdu pdu_ack;
+        //Header (le playload reste vide)
+    pdu_ack.header.source_port = ADRESSE_DISTANTE.port;
+    pdu_ack.header.dest_port = SOCKET_LOCAL.addr.port;
+    pdu_ack.header.seq_num = 0;
+    pdu_ack.header.ack_num = ack_num;
+    pdu_ack.header.syn = 0;
+    pdu_ack.header.ack = 1;
+    pdu_ack.header.fin = 0;
+
+    //Je renvoie mon pdu avec l'ACK
+    if ((IP_send(pdu_ack, addr))==-1) {
+        printf("Erreur envoi ACK\n");
+        exit(0);
+    }
 
 }
-
-
-
-

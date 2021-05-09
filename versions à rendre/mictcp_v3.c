@@ -32,7 +32,7 @@ int mic_tcp_socket(start_mode sm)
 
    int result = -1;
    result = initialize_components(sm); /* Appel obligatoire */
-   set_loss_rate(60);
+   set_loss_rate(50);
 
    return result;
 }
